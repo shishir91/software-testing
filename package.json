@@ -1,0 +1,21 @@
+{
+  "name": "software-testing",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cypress E2E tests for Samparka (haus9) customer + store sub-admin flows.",
+  "type": "module",
+  "scripts": {
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "test": "cypress run",
+    "test:chrome": "cypress run --browser chrome",
+    "test:headed": "cypress run --headed",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "cypress": "^14.5.0",
+    "eslint": "^9.19.0",
+    "eslint-plugin-cypress": "^4.1.0"
+  }
+}
+
