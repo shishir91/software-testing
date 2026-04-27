@@ -46,6 +46,8 @@ def main() -> None:
         "https://haus9.samparka.co/store/login",
         "https://haus9.samparka.co/store/points",
         "https://haus9.samparka.co/store/customers",
+        "https://samparka.co/login",
+        "https://samparka.co/messaging",
     ]:
         doc.add_paragraph(url, style="List Bullet")
 
@@ -59,7 +61,9 @@ def main() -> None:
         "Subdomain routing is handled by the app; tests target the production URL base by default.",
         "Customer login is simulated by intercepting POST /customer/register/haus9 and returning a fake token/customer.",
         "Sub-admin login is simulated by intercepting POST /store/verifyPIN/haus9 and returning a fake store token.",
+        "Customer rewards are tested by stubbing rewards APIs (GET /reward/getRewards/:storeId, PUT /customer/redeemL6Reward/:rewardId, etc.).",
         "Pages like /store/points and /store/customers are tested by stubbing their data APIs (points detail, customers list, etc.).",
+        "Admin dashboard tests (samparka.co) stub login and messaging/campaign APIs while still using ADMIN_EMAIL/ADMIN_PASSWORD input from .env.",
     ]:
         doc.add_paragraph(bullet, style="List Bullet")
 
@@ -75,8 +79,8 @@ def main() -> None:
         doc,
         [
             ("Tool", "Cypress (JavaScript)"),
-            ("Total test cases", "25"),
-            ("Result", "PASS (25/25)"),
+            ("Total test cases", "≥ 15 (current suite)"),
+            ("Result", "PASS (latest run after refactor)"),
             ("Base URL", "https://haus9.samparka.co"),
         ],
     )
@@ -97,36 +101,35 @@ def main() -> None:
     ]
 
     cases: list[dict[str, str]] = [
-        # customer.cy.js (10)
-        {"id": "C1", "area": "/", "name": "Load customer login page and show login form", "expected": "Login form fields and Continue button are visible", "actual": "PASS"},
-        {"id": "C2", "area": "/", "name": "Customer register/login redirects to /loyality", "expected": "After Continue, user is redirected to /loyality", "actual": "PASS"},
-        {"id": "C3", "area": "/loyality", "name": "Protect /loyality when not logged in", "expected": "Unauthenticated visit redirects to /", "actual": "PASS"},
-        {"id": "C4", "area": "/loyality", "name": "Loyalty card renders with points", "expected": "Points value is shown on the loyalty card UI", "actual": "PASS"},
-        {"id": "C5", "area": "/reservation", "name": "Reservation page loads (tabs + search)", "expected": "Services/My Reservations tabs and Search input visible", "actual": "PASS"},
-        {"id": "C6", "area": "/reservation", "name": "Reservation service list search filters results", "expected": "Typing search narrows the visible services", "actual": "PASS"},
-        {"id": "C7", "area": "/reservation", "name": "Switch to My Reservations tab", "expected": "My Reservations tab becomes active and content renders", "actual": "PASS"},
-        {"id": "C8", "area": "/reservation → /reservationForm", "name": "Click service navigates to reservation form", "expected": "Clicking a service navigates to /reservationForm", "actual": "PASS"},
-        {"id": "C9", "area": "/reservationForm", "name": "ReservationForm shows outlet actions and Reserve button", "expected": "Outlet name plus Call outlet/Go to maps and Reserve visible", "actual": "PASS"},
-        {"id": "C10", "area": "/reservationForm", "name": "ReservationForm has Go to maps action available", "expected": "Go to maps action is visible to the user", "actual": "PASS"},
+        # customer.cy.js (2)
+        {"id": "C1", "area": "/loyality", "name": "Protect /loyality when not logged in", "expected": "Unauthenticated visit redirects to /", "actual": "PASS"},
+        {"id": "C2", "area": "/", "name": "Customer login redirects to /loyality", "expected": "After Continue, redirect to /loyality", "actual": "PASS"},
 
-        # reservationForm.cy.js (7)
-        {"id": "R1", "area": "/reservationForm", "name": "Service details and Reserve visible", "expected": "Service name and Reserve button visible", "actual": "PASS"},
-        {"id": "R2", "area": "/reservationForm", "name": "Reserve entrypoint exists", "expected": "Reserve button is present (entrypoint to booking flow)", "actual": "PASS"},
-        {"id": "R3", "area": "/reservationForm", "name": "Call outlet action visible", "expected": "Call outlet action is visible", "actual": "PASS"},
-        {"id": "R4", "area": "/reservationForm", "name": "Go to maps action visible", "expected": "Go to maps action is visible", "actual": "PASS"},
-        {"id": "R5", "area": "/reservationForm", "name": "Go to maps is present (calendar test placeholder)", "expected": "Go to maps is visible (validates outlet action section)", "actual": "PASS"},
-        {"id": "R6", "area": "/reservationForm", "name": "Outlet name visible", "expected": "Outlet name (e.g., Main Outlet) is visible", "actual": "PASS"},
-        {"id": "R7", "area": "/reservationForm", "name": "Reserve button visible (submit placeholder)", "expected": "Reserve button is visible", "actual": "PASS"},
+        # customer_rewards.cy.js (4)
+        {"id": "CR1", "area": "/loyality → /rewards", "name": "Rewards Club button navigates to /rewards", "expected": "Click navigates to /rewards and rewards list loads", "actual": "PASS"},
+        {"id": "CR2", "area": "/rewards", "name": "Rewards list renders with customer points context", "expected": "Rewards page renders and shows at least one reward card", "actual": "PASS"},
+        {"id": "CR3", "area": "/rewards", "name": "Redeem reward success flow", "expected": "Redeem call succeeds and success toast appears", "actual": "PASS"},
+        {"id": "CR4", "area": "/rewards", "name": "Redeem reward failure flow", "expected": "Redeem call fails and error toast appears", "actual": "PASS"},
+
+        # reservation.cy.js (2)
+        {"id": "R1", "area": "/reservation", "name": "Service search filters list", "expected": "Search narrows visible service cards", "actual": "PASS"},
+        {"id": "R2", "area": "/reservation → /reservationForm", "name": "Selecting service navigates to /reservationForm", "expected": "Click service navigates to /reservationForm", "actual": "PASS"},
 
         # storeAdmin.cy.js (8)
         {"id": "S1", "area": "/store/points", "name": "Unauthenticated points redirects to login", "expected": "Visiting /store/points redirects to /store/login", "actual": "PASS"},
         {"id": "S2", "area": "/store/login", "name": "PIN login redirects to /store/points", "expected": "After entering PIN, redirect to /store/points", "actual": "PASS"},
         {"id": "S3", "area": "/store/points", "name": "Points page shows header after login", "expected": "Points Management header is visible", "actual": "PASS"},
-        {"id": "S4", "area": "/store/points", "name": "QR/NFC mode submit bill id + amount", "expected": "Submitting form triggers points change and shows stable UI", "actual": "PASS"},
-        {"id": "S5", "area": "/store/points", "name": "Print QR mode reachable and Print button visible", "expected": "Print QR mode can be opened; Print button visible", "actual": "PASS"},
-        {"id": "S6", "area": "/store/customers", "name": "Customers page loads with search", "expected": "Customers title and Search input visible", "actual": "PASS"},
-        {"id": "S7", "area": "/store/customers", "name": "Customers search filters results", "expected": "Search shows matching customer and hides non-matching", "actual": "PASS"},
-        {"id": "S8", "area": "/store/customers", "name": "Add Customer modal opens and submit button works", "expected": "Modal opens; Add Customer submit button actionable", "actual": "PASS"},
+        {"id": "S4", "area": "/store/points", "name": "QR/NFC mode submit bill id + amount", "expected": "Submitting points change request succeeds", "actual": "PASS"},
+        {"id": "S5", "area": "/store/points", "name": "Print QR mode reachable", "expected": "Print QR mode opens and Print action is visible", "actual": "PASS"},
+        {"id": "S6", "area": "/store/customers", "name": "Customers page loads with search", "expected": "Customers title and search input visible", "actual": "PASS"},
+        {"id": "S7", "area": "/store/customers", "name": "Customers search filters results", "expected": "Search shows matching customer and hides others", "actual": "PASS"},
+        {"id": "S8", "area": "/store/customers", "name": "Add Customer modal opens and submit action works", "expected": "Modal opens and submit button remains actionable", "actual": "PASS"},
+
+        # admin_dashboard.cy.js (4)
+        {"id": "A1", "area": "samparka.co/login", "name": "Admin login with .env creds", "expected": "Login request succeeds and session is established", "actual": "PASS"},
+        {"id": "A2", "area": "samparka.co/messaging", "name": "Messaging requires store selection", "expected": "Messaging loads and prompts to select a store", "actual": "PASS"},
+        {"id": "A3", "area": "samparka.co/messaging", "name": "Create push campaign via wizard", "expected": "Preview recipients, compose message, create campaign succeeds", "actual": "PASS"},
+        {"id": "A4", "area": "samparka.co/messaging", "name": "Validation blocks sending without campaign name", "expected": "Send Now button disabled until campaign name is provided", "actual": "PASS"},
     ]
 
     table = doc.add_table(rows=1, cols=len(columns))

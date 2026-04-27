@@ -103,26 +103,47 @@ Cypress.Commands.add("customerLoginViaUI", (customerOverrides = {}) => {
   // Visit login page and submit the register/login form.
   cy.visit("/");
   cy.wait("@checkStore");
-  cy.contains("button", "Continue").should("be.visible");
+  // Wait for either new login step input or legacy form inputs to appear.
+  cy.get(
+    'input[placeholder="Email address"], input[placeholder="Phone or email"], input[name="name"], input[placeholder="Name"]',
+    { timeout: 20000 }
+  ).should("exist");
 
-  // Avoid flaky "detached DOM" typing in heavily re-rendered inputs.
-  const setValue = (selector, value) => {
-    cy.get(selector)
-      .should("be.visible")
-      .then(($el) => {
-        const el = $el[0];
-        el.value = "";
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        el.value = String(value);
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        el.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-  };
+  // Haus9 prod currently uses the new login flow (email-only identifier step).
+  cy.get("body").then(($body) => {
+    const hasEmailOnly = $body.find('input[placeholder="Email address"]').length > 0;
 
-  setValue('input[name="name"]', mergedCustomer.name);
-  setValue('input[name="email"]', mergedCustomer.email);
-  setValue('input[name="phone"]', mergedCustomer.phone);
-  cy.contains("button", "Continue").click();
+    if (hasEmailOnly) {
+      cy.get('input[placeholder="Email address"]').as("emailInput");
+      cy.get("@emailInput").should("be.visible");
+      cy.get("@emailInput").clear();
+      cy.get("@emailInput").type(mergedCustomer.email, { delay: 0 });
+      cy.contains("button", "Continue").should("not.be.disabled");
+      cy.contains("button", "Continue").click();
+    } else {
+      cy.contains("button", "Continue").should("be.visible");
+      // Avoid flaky "detached DOM" typing in heavily re-rendered inputs.
+      const setValue = (selectors, value) => {
+        const sel = Array.isArray(selectors) ? selectors.join(",") : selectors;
+        cy.get(sel)
+          .filter(":visible")
+          .first()
+          .should("be.visible")
+          .then(($el) => {
+            const el = $el[0];
+            el.value = "";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.value = String(value);
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+      };
+      setValue(['input[name="name"]', 'input[placeholder="Name"]'], mergedCustomer.name);
+      setValue(['input[name="email"]', 'input[placeholder="Email"]'], mergedCustomer.email);
+      setValue(['input[name="phone"]', 'input[placeholder="Phone No"]', 'input[placeholder="Phone Number"]'], mergedCustomer.phone);
+      cy.contains("button", "Continue").click();
+    }
+  });
 
   cy.wait("@customerRegister");
   // App navigates to /loyality on success.
@@ -165,6 +186,74 @@ Cypress.Commands.add("stubReservationData", (overrides = {}) => {
     statusCode: 200,
     body: { success: true, message: "Reservation created" }
   }).as("createReservation");
+});
+
+Cypress.Commands.add("stubL6RewardsData", (options = {}) => {
+  const storeId = options.storeId || "store_haus9_test_id";
+  const token = options.token || "cust_token_test";
+
+  const rewards = options.rewards || [
+    {
+      _id: "r_point_1",
+      type: "l6",
+      name: "Free Coffee",
+      description: "Redeem for a free coffee",
+      isPointBased: true,
+      pointCost: 10,
+      redeemable: true,
+      evergreen: true,
+      redeemableTimes: 999,
+      isTierBased: false,
+      isMissionBased: false
+    },
+    {
+      _id: "r_tier_1",
+      type: "l6",
+      name: "VIP Dessert",
+      description: "Tier reward",
+      isPointBased: false,
+      isTierBased: true,
+      tier: "Gold",
+      redeemable: true,
+      evergreen: true,
+      redeemableTimes: 999,
+      isMissionBased: false
+    }
+  ];
+
+  const myRewards = options.myRewards || [];
+
+  // Rewards list
+  cy.intercept("GET", apiPattern(`/reward/getRewards/${storeId}`), {
+    statusCode: 200,
+    body: { rewards }
+  }).as("getRewards");
+
+  // Customer profile (points)
+  cy.intercept("GET", apiPattern("/customer"), (req) => {
+    if (req.headers?.token !== token) {
+      req.reply({ statusCode: 200, body: { points: 12, tier: "Gold", l6Data: { missionProgress: {} } } });
+      return;
+    }
+    req.reply({ statusCode: 200, body: { points: options.customerPoints ?? 12, tier: options.customerTier ?? "Gold", l6Data: { missionProgress: options.missionProgress ?? {} } } });
+  }).as("customerProfile");
+
+  // My rewards history
+  cy.intercept("GET", apiPattern("/customer/myRewards"), {
+    statusCode: 200,
+    body: { myRewards }
+  }).as("myRewards");
+
+  // Redeem endpoint (success by default)
+  cy.intercept("PUT", apiPattern(`/customer/redeemL6Reward/*`), (req) => {
+    const ok = options.redeemSuccess ?? true;
+    req.reply({
+      statusCode: 200,
+      body: ok
+        ? { success: true, message: options.redeemMessage ?? "Reward redeemed" }
+        : { success: false, message: options.redeemMessage ?? "Not enough points" }
+    });
+  }).as("redeemReward");
 });
 
 Cypress.Commands.add("storeLoginViaUI", () => {
